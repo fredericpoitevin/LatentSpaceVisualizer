@@ -1,0 +1,7 @@
+name: latent_space_visualizer
+channels:
+  - defaults
+dependencies:
+  - python
+prefix: /Users/deebanramalingam/opt/miniconda3/envs/latent_space_visualizer
+
