@@ -1,0 +1,12 @@
+name: latent_space_visualizer
+channels:
+  - conda-forge
+  - omnia
+  - defaults
+dependencies:
+  - python=3.8
+  - bokeh
+  - jupyterlab
+  - scikit-learn
+  - pip:
+    - kora
