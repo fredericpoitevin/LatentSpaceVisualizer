@@ -8,5 +8,6 @@ dependencies:
   - bokeh
   - jupyterlab
   - scikit-learn
+  - pip
   - pip:
     - kora
