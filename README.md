@@ -28,7 +28,7 @@ conda env create -f environment.yml
 
 Activate the environment.
 ```bash
-conda activate latent_space_visualizer_test
+conda activate latent_space_visualizer
 ```
 
 Install the kernel.
