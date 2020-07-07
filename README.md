@@ -43,7 +43,7 @@ Exit the environment.
 conda deactivate
 ```
 
-## Run the notebook
+## Running the notebook
 
 Run jupyter notebook.
 
