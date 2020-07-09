@@ -17,6 +17,8 @@ from PIL import Image
 import base64
 from io import BytesIO
 
+import h5py as h5
+
 def gnp2im(image_np, bit_depth_scale_factor):
     """
     Converts an image stored as a 2-D grayscale Numpy array into a PIL image.
@@ -37,9 +39,9 @@ def get_thumbnails(data, bit_depth_scale_factor):
         thumbnails.append(to_base64(memout.getvalue()))
     return thumbnails
 
-def display_event(div, x, y, thumbnails, figure_width, figure_height, image_brightness, attributes=[], style = 'float:left;clear:left;font_size=13px'):
+def display_event(div, x, y, thumbnails, image_brightness, attributes=[], style = 'font-size:20px;text-align:center'):
     "Build a suitable CustomJS to display the current event in the div model."
-    return CustomJS(args=dict(div=div, x=x, y=y, thumbnails=thumbnails, figure_width=figure_width, figure_height=figure_height, image_brightness=image_brightness), code="""
+    return CustomJS(args=dict(div=div, x=x, y=y, thumbnails=thumbnails, image_brightness=image_brightness), code="""
         var attrs = %s; var args = []; var n = x.length;
         
         var test_x;
@@ -65,9 +67,10 @@ def display_event(div, x, y, thumbnails, figure_width, figure_height, image_brig
             }
         }
         
-        var img_tag_attrs = "height='" + (figure_height) + "' width='" + (figure_width) + "' style='float: left; margin: 0px 15px 15px 0px; filter: brightness(" + image_brightness + ");' border='2'";
+        var img_tag_attrs = "style='filter: brightness(" + image_brightness + ");'";
         var img_tag = "<div><img src='" + thumbnails[minDiffIndex] + "' " + img_tag_attrs + "></img></div>";
-        var line = "<span style=%r>Index: " + minDiffIndex + "</span>" + img_tag + "\\n";
+        //var line = img_tag + "\\n";
+        var line = img_tag + "<p style=%r>" + (minDiffIndex+1) + "</p>" + "\\n";
         div.text = "";
         var text = div.text.concat(line);
         var lines = text.split("\\n")
@@ -76,39 +79,13 @@ def display_event(div, x, y, thumbnails, figure_width, figure_height, image_brig
         div.text = lines.join("\\n");
     """ % (attributes, style))
 
-def load_noise_dataset(n, h, w):
-    images = np.random.rand(n, h, w)
-    pca = PCA(n_components=1)
-    z = pca.fit_transform(images.reshape((n, h * w)))
-    labels = np.zeros(len(images))
-    labels[z.flatten() <= 0] = 0
-    labels[z.flatten() > 0] = 1
-    noise_dataset = {
-        'images': images,
-        'target': labels
-    }
-    return noise_dataset
+def visualize(dataset_file, image_type, latent_method, latent_idx_1, latent_idx_2, x_axis_label_text_font_size='20pt', y_axis_label_text_font_size='20pt', index_label_text_font_size='20px', image_brightness=1.0, figure_width = 450,
+    figure_height = 450, image_size_scale_factor = 0.9):
+    with h5.File(dataset_file, "r") as dataset_file_handle:
+        images = dataset_file_handle[image_type][:]
+        latent = dataset_file_handle[latent_method][:]
+        labels = np.zeros(len(images)) # unclear on how to plot targets
 
-def load_diffraction_dataset(dataset_filepath, n_pca_components=2):
-    images = np.load(dataset_filepath)
-    n, h, w = images.shape
-    pca = PCA(n_components=n_pca_components)
-    scaled_image_vectors = preprocessing.minmax_scale(images.reshape((n, h * w)), feature_range=(0, 1))
-    scaled_images = scaled_image_vectors.reshape((n, h, w))
-    latent = pca.fit_transform(scaled_image_vectors)
-    labels = np.zeros(len(images))
-    diffraction_dataset = {
-      'images': scaled_images,
-      'latent': latent,
-      'target': labels
-    }
-    return diffraction_dataset
-
-def visualize(dataset, latent_idx_1, latent_idx_2, image_brightness=1.0):
-    images = dataset['images']
-    latent = dataset['latent']
-    labels = dataset['target']
-    
     n_labels = len(np.unique(labels))
     
     x = latent[:, latent_idx_1]
@@ -124,19 +101,29 @@ def visualize(dataset, latent_idx_1, latent_idx_2, image_brightness=1.0):
 
     viridis_palette = bokeh.palettes.viridis(n_labels)
     colors = get_colors(viridis_palette)
-
-    figure_width = 450
-    figure_height = 450
+    
+    if latent_method == "principal_component_analysis":
+        x_axis_label = "PC {}".format(latent_idx_1 + 1)
+        y_axis_label = "PC {}".format(latent_idx_2 + 1)
+    elif latent_method == "diffusion_map":
+        x_axis_label = "DC {}".format(latent_idx_1 + 1)
+        y_axis_label = "DC {}".format(latent_idx_2 + 1)
+    else:
+        raise Exception("Unrecognized latent method. Please choose from: principal_component_analysis, diffusion_map")
 
     p = figure(width=figure_width, height=figure_height, tools="pan,wheel_zoom,box_zoom,reset")
     p.scatter(x, y, fill_color=colors, fill_alpha=0.6, line_color=None)
+    p.xaxis.axis_label = x_axis_label
+    p.xaxis.axis_label_text_font_size = x_axis_label_text_font_size
+    p.yaxis.axis_label = y_axis_label
+    p.yaxis.axis_label_text_font_size = y_axis_label_text_font_size
 
-    div = Div()
+    div = Div(width=int(figure_width*image_size_scale_factor), height=int(figure_height*image_size_scale_factor))
 
     layout = row(p, div)
 
     point_attributes = ['x', 'y']
-    p.js_on_event(events.MouseMove, display_event(div, x, y, thumbnails, figure_width, figure_height, image_brightness, attributes=point_attributes))
-    #p.js_on_event(events.Tap, display_event(div, x, y, thumbnails, figure_width, figure_height, attributes=point_attributes))
+    p.js_on_event(events.MouseMove, display_event(div, x, y, thumbnails, image_brightness, attributes=point_attributes, style='font-size:{};text-align:center'.format(index_label_text_font_size)))
+    #p.js_on_event(events.Tap, display_event(div, x, y, thumbnails, attributes=point_attributes))
 
     show(layout)

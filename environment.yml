@@ -1,4 +1,4 @@
-name: latent_space_visualizer
+name: latent_space_builder
 channels:
   - conda-forge
   - omnia
@@ -8,6 +8,7 @@ dependencies:
   - bokeh
   - jupyterlab
   - scikit-learn
+  - h5py
   - pip
   - pip:
     - numpy==1.19.0
