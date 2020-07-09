@@ -34,7 +34,7 @@ conda activate latent_space_visualizer
 Install the kernel.
 ```bash
 python -m ipykernel install --user --name latent_space_visualizer \ 
-	--display-name "Python (latent_space_visualizer)"
+--display-name "Python (latent_space_visualizer)"
 ```
 
 Exit the environment.
