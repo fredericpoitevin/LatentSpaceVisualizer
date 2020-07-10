@@ -57,7 +57,7 @@ def get_elevation_azimuth_rotation_angles_from_orientations(orientations):
     return x, y, z
 
 def get_colors_from_rotation_angles(rotation_angles, color_bar_palette=bokeh.palettes.plasma(256)):
-    color_bar_vmin = -2*np.pi
+    color_bar_vmin = 0.0
     color_bar_vmax = 2*np.pi
         
     colors = []
@@ -136,7 +136,6 @@ def visualize(dataset_file, image_type, latent_method,
               image_size_scale_factor = 0.9, 
               color_bar_height = 400, color_bar_width = 120):
     with h5.File(dataset_file, "r") as dataset_file_handle:
-        print(list(dataset_file_handle.keys()))
         images = dataset_file_handle[image_type][:]
         latent = dataset_file_handle[latent_method][:]
         labels = np.zeros(len(images)) # unclear on how to plot targets
@@ -179,7 +178,7 @@ def visualize(dataset_file, image_type, latent_method,
         p.xaxis.axis_label = "Azimuth"
         p.yaxis.axis_label = "Elevation"
         
-        color_bar_plot = figure(title="Rotation angle", title_location="right", 
+        color_bar_plot = figure(title="Rotation", title_location="right", 
                                 height=color_bar_height, width=color_bar_width, 
                                 min_border=0, 
                                 outline_line_color=None,
