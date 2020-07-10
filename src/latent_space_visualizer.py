@@ -3,7 +3,7 @@ import numpy as np
 from bokeh import events
 from bokeh.io import push_notebook, output_notebook, show
 from bokeh.layouts import row
-from bokeh.models import CustomJS, Div
+from bokeh.models import CustomJS, Div, LinearColorMapper, ColorBar
 from bokeh.plotting import ColumnDataSource
 import bokeh.palettes
 
@@ -18,6 +18,55 @@ import base64
 from io import BytesIO
 
 import h5py as h5
+
+def get_color(x, color_bar_palette, vmin, vmax):
+    n = len(color_bar_palette)
+    return color_bar_palette[int((x - vmin) / (vmax - vmin) * n)]
+
+def angle_axis_representation(quaternion):
+    q_r = quaternion[0]
+    q_ijk = quaternion[1:]
+    # https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation
+    q_norm = np.linalg.norm(q_ijk)
+    axis = q_ijk / q_norm
+    theta = 2 * np.arctan2(q_norm, q_r)
+    return axis, theta
+
+def azimuth_elevation_representation(unit_vector):
+    x = unit_vector[0]
+    y = unit_vector[1]
+    z = unit_vector[2]
+    # https://en.wikipedia.org/wiki/Spherical_coordinate_system
+    azimuth = np.arctan2(y, x)
+    elevation = np.arctan2(z, np.sqrt(x ** 2 + y ** 2))
+    return azimuth, elevation
+
+def get_elevation_azimuth_rotation_angles_from_orientations(orientations):
+    x = np.zeros((orientations.shape[0],))
+    y = np.zeros((orientations.shape[0],))
+    z = np.zeros((orientations.shape[0],))
+    
+    for orientation_idx, orientation in enumerate(orientations):
+        axis, theta = angle_axis_representation(orientation)
+        azimuth, elevation = azimuth_elevation_representation(axis)
+
+        x[orientation_idx] = azimuth
+        y[orientation_idx] = elevation
+        z[orientation_idx] = theta
+    
+    return x, y, z
+
+def get_colors_from_rotation_angles(rotation_angles, color_bar_palette=bokeh.palettes.plasma(256)):
+    color_bar_vmin = -2*np.pi
+    color_bar_vmax = 2*np.pi
+        
+    colors = []
+    for rotation_angle in rotation_angles:
+        color = get_color(rotation_angle, color_bar_palette, color_bar_vmin, color_bar_vmax)
+        colors.append(color)
+    
+    color_mapper = LinearColorMapper(palette=color_bar_palette, low=color_bar_vmin, high=color_bar_vmax)
+    return colors, color_mapper
 
 def gnp2im(image_np, bit_depth_scale_factor):
     """
@@ -79,48 +128,73 @@ def display_event(div, x, y, thumbnails, image_brightness, attributes=[], style 
         div.text = lines.join("\\n");
     """ % (attributes, style))
 
-def visualize(dataset_file, image_type, latent_method, latent_idx_1, latent_idx_2, x_axis_label_text_font_size='20pt', y_axis_label_text_font_size='20pt', index_label_text_font_size='20px', image_brightness=1.0, figure_width = 450,
-    figure_height = 450, image_size_scale_factor = 0.9):
+def visualize(dataset_file, image_type, latent_method, 
+              latent_idx_1=None, latent_idx_2=None, 
+              x_axis_label_text_font_size='20pt', y_axis_label_text_font_size='20pt', index_label_text_font_size='20px',
+              image_brightness=1.0, 
+              figure_width = 450, figure_height = 450, 
+              image_size_scale_factor = 0.9, 
+              color_bar_height = 400, color_bar_width = 120):
     with h5.File(dataset_file, "r") as dataset_file_handle:
+        print(list(dataset_file_handle.keys()))
         images = dataset_file_handle[image_type][:]
         latent = dataset_file_handle[latent_method][:]
         labels = np.zeros(len(images)) # unclear on how to plot targets
 
     n_labels = len(np.unique(labels))
     
-    x = latent[:, latent_idx_1]
-    y = latent[:, latent_idx_2]
-    
     bit_depth_scale_factor = 255
     thumbnails = get_thumbnails(images, bit_depth_scale_factor)
     
-    def get_colors(palette):
-        def map_label_to_color(label):
-            return viridis_palette[label]
-        return list(map(map_label_to_color, labels.astype(np.int)))
-
-    viridis_palette = bokeh.palettes.viridis(n_labels)
-    colors = get_colors(viridis_palette)
-    
-    if latent_method == "principal_component_analysis":
-        x_axis_label = "PC {}".format(latent_idx_1 + 1)
-        y_axis_label = "PC {}".format(latent_idx_2 + 1)
-    elif latent_method == "diffusion_map":
-        x_axis_label = "DC {}".format(latent_idx_1 + 1)
-        y_axis_label = "DC {}".format(latent_idx_2 + 1)
-    else:
-        raise Exception("Unrecognized latent method. Please choose from: principal_component_analysis, diffusion_map")
-
     p = figure(width=figure_width, height=figure_height, tools="pan,wheel_zoom,box_zoom,reset")
-    p.scatter(x, y, fill_color=colors, fill_alpha=0.6, line_color=None)
-    p.xaxis.axis_label = x_axis_label
     p.xaxis.axis_label_text_font_size = x_axis_label_text_font_size
-    p.yaxis.axis_label = y_axis_label
     p.yaxis.axis_label_text_font_size = y_axis_label_text_font_size
 
     div = Div(width=int(figure_width*image_size_scale_factor), height=int(figure_height*image_size_scale_factor))
 
-    layout = row(p, div)
+    if latent_method == "principal_component_analysis":
+        x = latent[:, latent_idx_1]
+        y = latent[:, latent_idx_2]   
+        
+        p.scatter(x, y, fill_alpha=0.6)
+        p.xaxis.axis_label = "PC {}".format(latent_idx_1 + 1)
+        p.yaxis.axis_label = "PC {}".format(latent_idx_2 + 1)
+
+        layout = row(p, div)
+    elif latent_method == "diffusion_map":  
+        x = latent[:, latent_idx_1]
+        y = latent[:, latent_idx_2]   
+        
+        p.scatter(x, y, fill_alpha=0.6)
+        p.xaxis.axis_label = "DC {}".format(latent_idx_1 + 1)
+        p.yaxis.axis_label = "DC {}".format(latent_idx_2 + 1)
+
+        layout = row(p, div)
+    elif latent_method == "orientations":    
+        x, y, rotation_angles = get_elevation_azimuth_rotation_angles_from_orientations(latent)
+        
+        colors, color_mapper = get_colors_from_rotation_angles(rotation_angles)
+                
+        p.scatter(x, y, fill_alpha=0.6, fill_color=colors, line_color=None)
+        p.xaxis.axis_label = "Azimuth"
+        p.yaxis.axis_label = "Elevation"
+        
+        color_bar_plot = figure(title="Rotation angle", title_location="right", 
+                                height=color_bar_height, width=color_bar_width, 
+                                min_border=0, 
+                                outline_line_color=None,
+                                toolbar_location=None)
+        
+        color_bar_plot.title.align = "center"
+        color_bar_plot.title.text_font_size = "12pt"
+        color_bar_plot.scatter([], []) # removes Bokeh warning 1000 (MISSING_RENDERERS)
+        
+        color_bar = ColorBar(color_mapper=color_mapper, label_standoff=12, border_line_color=None, location=(0,0))
+        color_bar_plot.add_layout(color_bar, "right")
+        
+        layout = row(p, color_bar_plot, div)
+    else:
+        raise Exception("Unrecognized latent method. Please choose from: principal_component_analysis, diffusion_map")
 
     point_attributes = ['x', 'y']
     p.js_on_event(events.MouseMove, display_event(div, x, y, thumbnails, image_brightness, attributes=point_attributes, style='font-size:{};text-align:center'.format(index_label_text_font_size)))
