@@ -13,7 +13,7 @@ requirements = [
 ]
 
 setuptools.setup(
-    name="latent-space-visualizer", # Replace with your own username
+    name="latent-space-visualizer",
     version="0.0.1",
     author="Deeban Ramalingam",
     author_email="rdeeban@gmail.com",
