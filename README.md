@@ -6,67 +6,51 @@ Two variables of the latent space are displayed in a 2D scatter plot. When the m
 
 <img src="figures/Figure1.png" />
 
-## Getting started
+## Downloading the code
 
-Clone this repository.
+This command is used to download the code into your computer.
 
 ```bash
 git clone https://github.com/compSPI/LatentSpaceVisualizer.git
 ```
 
-Change the current working directory to the root of this repository.
+## Installing the code in Jupyter Notebook
+
+These commands are used to install the code into Jupyter Notebook.
 
 ```bash
-cd LatentSpaceVisualizer
-```
-
-Download from the Anaconda Cloud and install the Python environment that has the dependencies required to run the code.
-
-```bash
+cd /path/to/LatentSpaceVisualizer
 conda env create compSPI/compSPI
-```
-
-Activate the environment.
-
-```bash
 conda activate compSPI
-```
-
-Install the kernel.
-
-```bash
 python -m ipykernel install --user --name compSPI --display-name "Python (compSPI)"
-```
-
-Exit the environment.
-
-```bash
 conda deactivate
 ```
 
-## Running the notebook
+## Running the code in Jupyter Notebook
 
-Run jupyter notebook.
+The following commands are used to run the code in Jupyter Notebook.
+
+Start Jupyter Notebook.
 
 ```bash
 jupyter notebook 
 ```
 
-Open the tutorial notebook ```latent_space_visualizer.ipynb```.
+Open the tutorial notebook ```latent_space_visualizer.ipynb``` and change the Python kernel to ```compSPI```.
 
-Change the Python kernel to ```compSPI```.
-
-Set ```dataset_file``` to an HDF5 file containing the dataset.
+Find the following line in the notebook:
 
 ```python
 dataset_file = '../data/cspi_synthetic_dataset_diffraction_patterns_1024x1040.hdf5'
 ```
 
+Set the variable ```dataset_file``` to an HDF5 file containing the dataset.
+
 Run the notebook.
 
-## Installation
+## Installing the code into your computer
 
-The project package can be installed by running the following command.
+This command is used to install the code into your computer.
 
 ```bash
 python setup.py install
