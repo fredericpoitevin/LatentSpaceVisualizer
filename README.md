@@ -6,73 +6,61 @@ Two variables of the latent space are displayed in a 2D scatter plot. When the m
 
 <img src="figures/Figure1.png" />
 
-## Getting started
+## Downloading the code
 
-Clone this repository.
+This command is used to download the code into your computer.
 
 ```bash
 git clone https://github.com/compSPI/LatentSpaceVisualizer.git
 ```
 
-Change the current working directory to the root of this repository.
+## Installing the code into your computer
+
+This command is used to install the code into your computer.
+
+```bash
+python setup.py install
+```
+
+## Installing the code in Jupyter Notebook
+
+These commands are used to install the code into Jupyter Notebook.
 
 ```bash
 cd /path/to/LatentSpaceVisualizer
+conda env create compSPI/compSPI
+conda activate compSPI
+python -m ipykernel install --user --name compSPI --display-name "Python (compSPI)"
 ```
 
-Create the Python environment that has the dependencies required to run the code.
+## Running the code in Jupyter Notebook
 
-```bash
-conda env create -f environment.yml
-```
+The following commands are used to run the code in Jupyter Notebook.
 
-Activate the environment.
-```bash
-conda activate latent_space_visualizer
-```
-
-Install the kernel.
-```bash
-python -m ipykernel install --user --name latent_space_visualizer \ 
-	--display-name "Python (latent_space_visualizer)"
-```
-
-Exit the environment.
-
-```bash
-conda deactivate
-```
-
-## Running the notebook
-
-Run jupyter notebook.
+Start Jupyter Notebook.
 
 ```bash
 jupyter notebook 
 ```
 
-Open the tutorial notebook ```latent_space_visualizer.ipynb```.
+Open the tutorial notebook ```latent_space_visualizer.ipynb``` and change the Python kernel to ```compSPI```.
 
-Change the Python kernel to ```latent_space_visualizer```.
-
-Set ```dataset_filepath``` to the file containing the dataset.
+Find the following line in the notebook:
 
 ```python
-dataset_filepath = '../data/cspi_synthetic_dataset_diffraction_patterns_1024x1040.npy'
+dataset_file = '../data/cspi_synthetic_dataset_diffraction_patterns_1024x1040.hdf5'
 ```
+
+Set the variable ```dataset_file``` to an HDF5 file containing the dataset.
 
 Run the notebook.
 
 ## Code structure
 
-The code for this repository is organized as follows:
+The relevant files and folders in this repository are described below:
 
 - ```README.md```: Highlights the usefulness of the Latent Space Visualizer. 
 
 - ```latent_space_visualizer.ipynb```:  Provides a tutorial notebook for using the Latent Space Visualizer.
 
-- ```environment.yml```: Contains Python packages required to run the notebook.
-
-- ```src/```: Contains Python files required to run the notebook.
-
-- ```figures/```: Contains figures used in the repository.
+- ```latent_space_visualizer/```: Contains the Python file required to run the notebook.
