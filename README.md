@@ -55,6 +55,28 @@ Set the variable ```dataset_file``` to an HDF5 file containing the dataset.
 
 Run the notebook.
 
+## Building the code package
+
+```bash
+cd LatentSpaceVisualizer
+conda build .
+```
+
+## Uploading the code package
+
+While the command to build the code package (`conda build .`) is running, you should see a line that looks like:
+
+(on Mac OSX)
+```bash 
+Processing '/Users/${USER}/opt/anaconda3/conda-bld/osx-64/latent-space-visualizer-0.0.1-py37_0.tar.bz2'
+```
+
+This location contains the built code package. To upload this code package  to the compSPI organization in Anaconda Cloud, run the following command.
+
+```bash
+anaconda upload --user compSPI '/Users/${USER}/opt/anaconda3/conda-bld/osx-64/latent-space-visualizer-0.0.1-py37_0.tar.bz2'
+```
+
 ## Code structure
 
 The relevant files and folders in this repository are described below:
