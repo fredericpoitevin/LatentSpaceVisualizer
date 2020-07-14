@@ -19,7 +19,7 @@ git clone https://github.com/compSPI/LatentSpaceVisualizer.git
 This command is used to install the code on your computer.
 
 ```bash
-python setup.py install
+python setup.py install --user
 ```
 
 ## Installing the code on Jupyter Notebook
