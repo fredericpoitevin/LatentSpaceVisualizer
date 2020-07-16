@@ -1,4 +1,4 @@
-name: latent_space_visualizer
+name: latent-space-visualizer
 channels:
   - conda-forge
   - omnia
