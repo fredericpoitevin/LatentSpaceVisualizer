@@ -19,6 +19,8 @@ from PIL import Image
 import base64
 from io import BytesIO
 
+from six import string_types
+
 import h5py as h5
 
 
@@ -59,6 +61,66 @@ def get_elevation_azimuth_rotation_angles_from_orientations(orientations):
     
     return x, y, z
 
+# https://github.com/fredericpoitevin/pysingfel/blob/master/pysingfel/geometry/convert.py
+# Converters between different descriptions of 3D rotation.
+def angle_axis_to_rot3d(axis, theta):
+    """
+    Convert rotation with angle theta around a certain axis to a rotation matrix in 3D.
+    :param axis: A numpy array for the rotation axis.
+        Axis names 'x', 'y', and 'z' are also accepted.
+    :param theta: Rotation angle.
+    :return:
+    """
+    if isinstance(axis, string_types):
+        axis = axis.lower()
+        if axis == 'x':
+            axis = np.array([1., 0., 0.])
+        elif axis == 'y':
+            axis = np.array([0., 1., 0.])
+        elif axis == 'z':
+            axis = np.array([0., 0., 1.])
+        else:
+            raise ValueError("Axis should be 'x', 'y', 'z' or a 3D vector.")
+    elif len(axis) != 3:
+        raise ValueError("Axis should be 'x', 'y', 'z' or a 3D vector.")
+    axis = axis.astype(float)
+    axis /= np.linalg.norm(axis)
+    a = axis[0]
+    b = axis[1]
+    c = axis[2]
+    cos_theta = np.cos(theta)
+    bracket = 1 - cos_theta
+    a_bracket = a * bracket
+    b_bracket = b * bracket
+    c_bracket = c * bracket
+    sin_theta = np.sin(theta)
+    a_sin_theta = a * sin_theta
+    b_sin_theta = b * sin_theta
+    c_sin_theta = c * sin_theta
+    rot3d = np.array(
+        [[a * a_bracket + cos_theta, a * b_bracket - c_sin_theta, a * c_bracket + b_sin_theta],
+         [b * a_bracket + c_sin_theta, b * b_bracket + cos_theta, b * c_bracket - a_sin_theta],
+         [c * a_bracket - b_sin_theta, c * b_bracket + a_sin_theta, c * c_bracket + cos_theta]])
+    return rot3d
+
+# /reg/neh/home/dujardin/pysingfel/examples/scripts/gui.py
+def build_3d_rotation_matrix_from_azimuth_elevation(azim, elev):
+    axis_azim = np.array([1., 0., 0.])
+    axis_elev = np.array([0., 1., 0.])
+    rot_azim = angle_axis_to_rot3d(axis_azim, -azim)
+    rot_elev = angle_axis_to_rot3d(axis_elev, elev)
+    rot = np.matmul(rot_elev, rot_azim)
+    return rot
+
+def get_3d_rotation_matrices_from_azimuth_elevation_coordinates(azims, elevs):
+    rotation_matrices_3d = np.zeros((azims.shape[0], 3, 3))
+    
+    for idx, (azim, elev) in enumerate(zip(azims, elevs)):
+        rotation_matrix_3d = build_3d_rotation_matrix_from_azimuth_elevation(azim, elev)
+        rotation_matrices_3d[idx] = rotation_matrix_3d
+    
+    return rotation_matrices_3d
+        
 def get_colors_from_rotation_angles(rotation_angles, color_bar_palette=bokeh.palettes.plasma(256)):
     color_bar_vmin = 0.0
     color_bar_vmax = 2*np.pi
@@ -131,16 +193,86 @@ def display_event(div, x, y, thumbnails, image_brightness, attributes=[], style 
         div.text = lines.join("\\n");
     """ % (attributes, style))
 
+def display_real2d_plot(real2d, x, y, rotation_matrices, atomic_coordinates, attributes=[]):
+    "Build a suitable CustomJS to display the current event in the real2d_plot scatter plot."
+    return CustomJS(args=dict(real2d=real2d, x=x, y=y, rotation_matrices=rotation_matrices, atomic_coordinates=atomic_coordinates), code="""
+        // Adapted from:
+        // 1. https://stackoverflow.com/questions/27205018/multiply-2-matrices-in-javascript
+        // 2. https://en.wikipedia.org/wiki/Transpose
+        function transposeSecondArgThenMultiplyMatrices(m1, m2) {
+            var result = [];
+            for (var i = 0; i < m1.length; i++) {
+                result[i] = [];
+                for (var j = 0; j < m2.length; j++) {
+                    var sum = 0;
+                    for (var k = 0; k < m1[0].length; k++) {                        
+                        sum += m1[i][k] * m2[j][k];
+                    }
+                    result[i][j] = sum;
+                }
+            }
+            return result;
+        }
+    
+        var attrs = %s; var args = []; var n = x.length;
+        
+        var test_x;
+        var test_y;
+        for (var i = 0; i < attrs.length; i++) {
+            if (attrs[i] == 'x') {
+                test_x = Number(cb_obj[attrs[i]]);
+            }
+            
+            if (attrs[i] == 'y') {
+                test_y = Number(cb_obj[attrs[i]]);
+            }
+        }
+    
+        var minDiffIndex = -1;
+        var minDiff = 99999;
+        var squareDiff;
+        for (var i = 0; i < n; i++) {
+            squareDiff = (test_x - x[i]) ** 2 + (test_y - y[i]) ** 2;
+            if (squareDiff < minDiff) {
+                minDiff = squareDiff;
+                minDiffIndex = i;
+            }
+        }
+                
+        if (minDiffIndex > -1) {
+            // identify the rotation matrix that corresponds to the nearest (azimuth, elevation) point
+            var rotation_matrix = rotation_matrices[minDiffIndex];
+
+            // rotate atomic_coordinates using rotation_matrix
+            // Adapted from: /reg/neh/home/dujardin/pysingfel/examples/scripts/gui.py
+            var rotated_atomic_coordinates = transposeSecondArgThenMultiplyMatrices(rotation_matrix, atomic_coordinates);
+
+            // scatter plot the rotated_atomic_coordinates
+            // Adapted from: /reg/neh/home/dujardin/pysingfel/examples/scripts/gui.py
+            real2d.data['x'] = rotated_atomic_coordinates[1];
+            real2d.data['y'] = rotated_atomic_coordinates[0];
+            real2d.change.emit();
+        }
+    """ % (attributes))    
+
 def visualize(dataset_file, image_type, latent_method, 
               latent_idx_1=None, latent_idx_2=None, 
-              x_axis_label_text_font_size='20pt', y_axis_label_text_font_size='20pt', index_label_text_font_size='20px',
+              particle_property=None,
+              particle_plot_x_axis_label_text_font_size='20pt', particle_plot_y_axis_label_text_font_size='20pt',
+              x_axis_label_text_font_size='20pt', y_axis_label_text_font_size='20pt', 
+              index_label_text_font_size='20px',
               image_brightness=1.0, 
               figure_width = 450, figure_height = 450, 
               image_size_scale_factor = 0.9, 
               color_bar_height = 400, color_bar_width = 120):
+    
     with h5.File(dataset_file, "r") as dataset_file_handle:
         images = dataset_file_handle[image_type][:]
         latent = dataset_file_handle[latent_method][:]
+        
+        if latent_method == "orientations":
+            atomic_coordinates = dataset_file_handle[particle_property][:]
+        
         labels = np.zeros(len(images)) # unclear on how to plot targets
 
     n_labels = len(np.unique(labels))
@@ -153,6 +285,8 @@ def visualize(dataset_file, image_type, latent_method,
     p.yaxis.axis_label_text_font_size = y_axis_label_text_font_size
 
     div = Div(width=int(figure_width*image_size_scale_factor), height=int(figure_height*image_size_scale_factor))
+    
+    point_attributes = ['x', 'y']
 
     if latent_method == "principal_component_analysis":
         x = latent[:, latent_idx_1]
@@ -175,9 +309,28 @@ def visualize(dataset_file, image_type, latent_method,
     elif latent_method == "orientations":    
         x, y, rotation_angles = get_elevation_azimuth_rotation_angles_from_orientations(latent)
         
+        rotation_matrices = get_3d_rotation_matrices_from_azimuth_elevation_coordinates(x, y)
+        
+#         def rotate_atomic_coordinates_using_3d_rotation_matrices(atomic_coordinates, rotation_matrices):        
+#             for rot in rotation_matrices:
+#                 rotated_atomic_coordinates = np.matmul(rot, atomic_coordinates.T)              
+#         rotated_atomic_coordinates = rotate_atomic_coordinates_using_3d_rotation_matrices(atomic_coordinates, rotation_matrices)
+        
         colors, color_mapper = get_colors_from_rotation_angles(rotation_angles)
+        
+        real2d_plot = figure(width=figure_width, height=figure_height, tools="pan,wheel_zoom,box_zoom,reset")
+        real2d_plot.xaxis.axis_label_text_font_size = particle_plot_x_axis_label_text_font_size
+        real2d_plot.yaxis.axis_label_text_font_size = particle_plot_y_axis_label_text_font_size
+        
+        real2d_plot_data_source = ColumnDataSource({'x': [], 'y': []})
+        
+        real2d_plot.scatter('x', 'y', source=real2d_plot_data_source)
+        
+        real2d_plot.xaxis.axis_label = "Y"
+        real2d_plot.yaxis.axis_label = "X"
                 
         p.scatter(x, y, fill_alpha=0.6, fill_color=colors, line_color=None)
+                
         p.xaxis.axis_label = "Azimuth"
         p.yaxis.axis_label = "Elevation"
         
@@ -194,11 +347,12 @@ def visualize(dataset_file, image_type, latent_method,
         color_bar = ColorBar(color_mapper=color_mapper, label_standoff=12, border_line_color=None, location=(0,0))
         color_bar_plot.add_layout(color_bar, "right")
         
-        layout = row(p, color_bar_plot, div)
+        layout = row(real2d_plot, p, color_bar_plot, div)
+                
+        p.js_on_event(events.MouseMove, display_real2d_plot(real2d_plot_data_source, x, y, rotation_matrices, atomic_coordinates, attributes=point_attributes))
     else:
         raise Exception("Unrecognized latent method. Please choose from: principal_component_analysis, diffusion_map")
 
-    point_attributes = ['x', 'y']
     p.js_on_event(events.MouseMove, display_event(div, x, y, thumbnails, image_brightness, attributes=point_attributes, style='font-size:{};text-align:center'.format(index_label_text_font_size)))
     #p.js_on_event(events.Tap, display_event(div, x, y, thumbnails, attributes=point_attributes))
 
