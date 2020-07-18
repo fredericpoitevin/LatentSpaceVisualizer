@@ -105,10 +105,10 @@ def angle_axis_to_rot3d(axis, theta):
 
 # /reg/neh/home/dujardin/pysingfel/examples/scripts/gui.py
 def build_3d_rotation_matrix_from_azimuth_elevation(azim, elev):
-    axis_azim = np.array([0., 0., -1.])
-    axis_elev = np.array([0., -1., 0.])
-    rot_azim = angle_axis_to_rot3d(axis_azim, -azim)
-    rot_elev = angle_axis_to_rot3d(axis_elev, elev)
+    axis_azim = np.array([0., 0., 1.]) # +z
+    axis_elev = np.array([0., -1., 0.]) # -y
+    rot_azim = angle_axis_to_rot3d(axis_azim, azim) # counter-clockwise about +z
+    rot_elev = angle_axis_to_rot3d(axis_elev, elev) # counter-clockwise about -y
     rot = np.matmul(rot_elev, rot_azim)
     return rot
 
