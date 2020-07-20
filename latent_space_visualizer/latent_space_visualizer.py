@@ -61,66 +61,126 @@ def get_elevation_azimuth_rotation_angles_from_orientations(orientations):
     
     return x, y, z
 
-# https://github.com/fredericpoitevin/pysingfel/blob/master/pysingfel/geometry/convert.py
-# Converters between different descriptions of 3D rotation.
-def angle_axis_to_rot3d(axis, theta):
-    """
-    Convert rotation with angle theta around a certain axis to a rotation matrix in 3D.
-    :param axis: A numpy array for the rotation axis.
-        Axis names 'x', 'y', and 'z' are also accepted.
-    :param theta: Rotation angle.
-    :return:
-    """
-    if isinstance(axis, string_types):
-        axis = axis.lower()
-        if axis == 'x':
-            axis = np.array([1., 0., 0.])
-        elif axis == 'y':
-            axis = np.array([0., 1., 0.])
-        elif axis == 'z':
-            axis = np.array([0., 0., 1.])
-        else:
-            raise ValueError("Axis should be 'x', 'y', 'z' or a 3D vector.")
-    elif len(axis) != 3:
-        raise ValueError("Axis should be 'x', 'y', 'z' or a 3D vector.")
-    axis = axis.astype(float)
-    axis /= np.linalg.norm(axis)
-    a = axis[0]
-    b = axis[1]
-    c = axis[2]
-    cos_theta = np.cos(theta)
-    bracket = 1 - cos_theta
-    a_bracket = a * bracket
-    b_bracket = b * bracket
-    c_bracket = c * bracket
-    sin_theta = np.sin(theta)
-    a_sin_theta = a * sin_theta
-    b_sin_theta = b * sin_theta
-    c_sin_theta = c * sin_theta
-    rot3d = np.array(
-        [[a * a_bracket + cos_theta, a * b_bracket - c_sin_theta, a * c_bracket + b_sin_theta],
-         [b * a_bracket + c_sin_theta, b * b_bracket + cos_theta, b * c_bracket - a_sin_theta],
-         [c * a_bracket - b_sin_theta, c * b_bracket + a_sin_theta, c * c_bracket + cos_theta]])
-    return rot3d
+# https://sscc.nimh.nih.gov/pub/dist/bin/linux_gcc32/meica.libs/nibabel/quaternions.py
+def quat2mat(q):
+    ''' Calculate rotation matrix corresponding to quaternion
 
-# /reg/neh/home/dujardin/pysingfel/examples/scripts/gui.py
-def build_3d_rotation_matrix_from_azimuth_elevation(azim, elev):
-    axis_azim = np.array([0., 0., 1.]) # +z
-    axis_elev = np.array([0., -1., 0.]) # -y
-    rot_azim = angle_axis_to_rot3d(axis_azim, azim) # counter-clockwise about +z
-    rot_elev = angle_axis_to_rot3d(axis_elev, elev) # counter-clockwise about -y
-    rot = np.matmul(rot_elev, rot_azim)
-    return rot
+    Parameters
+    ----------
+    q : 4 element array-like
 
-def get_3d_rotation_matrices_from_azimuth_elevation_coordinates(azims, elevs):
-    rotation_matrices_3d = np.zeros((azims.shape[0], 3, 3))
+    Returns
+    -------
+    M : (3,3) array
+      Rotation matrix corresponding to input quaternion *q*
+
+    Notes
+    -----
+    Rotation matrix applies to column vectors, and is applied to the
+    left of coordinate vectors.  The algorithm here allows non-unit
+    quaternions.
+
+    References
+    ----------
+    Algorithm from
+    http://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> M = quat2mat([1, 0, 0, 0]) # Identity quaternion
+    >>> np.allclose(M, np.eye(3))
+    True
+    >>> M = quat2mat([0, 1, 0, 0]) # 180 degree rotn around axis 0
+    >>> np.allclose(M, np.diag([1, -1, -1]))
+    True
+    '''
+    w, x, y, z = q
+    Nq = w*w + x*x + y*y + z*z
+    FLOAT_EPS = np.finfo(np.float).eps
+    if Nq < FLOAT_EPS:
+        return np.eye(3)
+    s = 2.0/Nq
+    X = x*s
+    Y = y*s
+    Z = z*s
+    wX = w*X; wY = w*Y; wZ = w*Z
+    xX = x*X; xY = x*Y; xZ = x*Z
+    yY = y*Y; yZ = y*Z; zZ = z*Z
+    return np.array(
+           [[ 1.0-(yY+zZ), xY-wZ, xZ+wY ],
+            [ xY+wZ, 1.0-(xX+zZ), yZ-wX ],
+            [ xZ-wY, yZ+wX, 1.0-(xX+yY) ]])
+
+def get_3d_rotation_matrices_from_quaternions(quats):    
+    rotation_matrices_3d = np.zeros((quats.shape[0], 3, 3))
     
-    for idx, (azim, elev) in enumerate(zip(azims, elevs)):
-        rotation_matrix_3d = build_3d_rotation_matrix_from_azimuth_elevation(azim, elev)
+    for idx, quat in enumerate(quats):
+        rotation_matrix_3d = quat2mat(quat)
         rotation_matrices_3d[idx] = rotation_matrix_3d
     
     return rotation_matrices_3d
-        
+
+# # https://github.com/fredericpoitevin/pysingfel/blob/master/pysingfel/geometry/convert.py
+# # Converters between different descriptions of 3D rotation.
+# def angle_axis_to_rot3d(axis, theta):
+#     """
+#     Convert rotation with angle theta around a certain axis to a rotation matrix in 3D.
+#     :param axis: A numpy array for the rotation axis.
+#         Axis names 'x', 'y', and 'z' are also accepted.
+#     :param theta: Rotation angle.
+#     :return:
+#     """
+#     if isinstance(axis, string_types):
+#         axis = axis.lower()
+#         if axis == 'x':
+#             axis = np.array([1., 0., 0.])
+#         elif axis == 'y':
+#             axis = np.array([0., 1., 0.])
+#         elif axis == 'z':
+#             axis = np.array([0., 0., 1.])
+#         else:
+#             raise ValueError("Axis should be 'x', 'y', 'z' or a 3D vector.")
+#     elif len(axis) != 3:
+#         raise ValueError("Axis should be 'x', 'y', 'z' or a 3D vector.")
+#     axis = axis.astype(float)
+#     axis /= np.linalg.norm(axis)
+#     a = axis[0]
+#     b = axis[1]
+#     c = axis[2]
+#     cos_theta = np.cos(theta)
+#     bracket = 1 - cos_theta
+#     a_bracket = a * bracket
+#     b_bracket = b * bracket
+#     c_bracket = c * bracket
+#     sin_theta = np.sin(theta)
+#     a_sin_theta = a * sin_theta
+#     b_sin_theta = b * sin_theta
+#     c_sin_theta = c * sin_theta
+#     rot3d = np.array(
+#         [[a * a_bracket + cos_theta, a * b_bracket - c_sin_theta, a * c_bracket + b_sin_theta],
+#          [b * a_bracket + c_sin_theta, b * b_bracket + cos_theta, b * c_bracket - a_sin_theta],
+#          [c * a_bracket - b_sin_theta, c * b_bracket + a_sin_theta, c * c_bracket + cos_theta]])
+#     return rot3d
+
+# # /reg/neh/home/dujardin/pysingfel/examples/scripts/gui.py
+# def build_3d_rotation_matrix_from_azimuth_elevation(azim, elev):
+#     axis_azim = np.array([0., 0., 1.]) # +z
+#     axis_elev = np.array([0., -1., 0.]) # -y
+#     rot_azim = angle_axis_to_rot3d(axis_azim, azim) # counter-clockwise about +z
+#     rot_elev = angle_axis_to_rot3d(axis_elev, elev) # counter-clockwise about -y
+#     rot = np.matmul(rot_elev, rot_azim)
+#     return rot
+
+# def get_3d_rotation_matrices_from_azimuth_elevation_coordinates(azims, elevs):
+#     rotation_matrices_3d = np.zeros((azims.shape[0], 3, 3))
+    
+#     for idx, (azim, elev) in enumerate(zip(azims, elevs)):
+#         rotation_matrix_3d = build_3d_rotation_matrix_from_azimuth_elevation(azim, elev)
+#         rotation_matrices_3d[idx] = rotation_matrix_3d
+    
+#     return rotation_matrices_3d
+
 def get_colors_from_rotation_angles(rotation_angles, color_bar_palette=bokeh.palettes.plasma(256)):
     color_bar_vmin = 0.0
     color_bar_vmax = 2*np.pi
@@ -306,10 +366,14 @@ def visualize(dataset_file, image_type, latent_method,
         p.yaxis.axis_label = "DC {}".format(latent_idx_2 + 1)
 
         layout = row(p, div)
-    elif latent_method == "orientations":    
+    elif latent_method == "orientations":  
+        # quaternion -> angle-axis -> (azimuth, elevation), rotation angle about axis
         x, y, rotation_angles = get_elevation_azimuth_rotation_angles_from_orientations(latent)
         
-        rotation_matrices = get_3d_rotation_matrices_from_azimuth_elevation_coordinates(x, y)
+        # quaternion -> 3d rotation matrix
+        rotation_matrices = get_3d_rotation_matrices_from_quaternions(latent)
+        
+        #rotation_matrices = get_3d_rotation_matrices_from_azimuth_elevation_coordinates(x, y)
         
 #         def rotate_atomic_coordinates_using_3d_rotation_matrices(atomic_coordinates, rotation_matrices):        
 #             for rot in rotation_matrices:
