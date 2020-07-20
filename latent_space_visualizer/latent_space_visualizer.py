@@ -117,6 +117,25 @@ def get_3d_rotation_matrices_from_quaternions(quats):
     
     for idx, quat in enumerate(quats):
         rotation_matrix_3d = quat2mat(quat)
+        """
+        “Orientations” are weirdly defined because they are the relative orientation of the particle with regard to the beam.
+
+        In a sense, the beam is always on the same Z axis and the particles have different orientations.
+
+        But, when work with a diffraction volume that you want to slice, it is more convenient to think as the particle as the base of your coordinate system, and the beam comes with some orientation.
+
+        So, when you are slicing, are you giving the orientation of the particle or of the beam?
+
+        If you only use one, it doesn’t really matter.
+
+        But it matters if you want your data to be consistent…
+        New
+
+        So, to come back to the question. The slicing function takes one orientation. This orientation is assumed to be the beam orientation. Now, if you want it to represent the particle orientation, you need to inverse it.
+
+        That way, if you orient the particle a certain way, that corresponds to taking the slices with the same orientation (inversed).
+        """
+        
         rotation_matrices_3d[idx] = rotation_matrix_3d
     
     return rotation_matrices_3d
